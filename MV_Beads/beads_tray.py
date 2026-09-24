@@ -74,7 +74,7 @@ class BeadsTray:
         return np.nanmax(band, axis=axis)
 
 
-    def get_peaks(self, beads_line: NDArray, pixel_spacing: float) -> NDArray:
+    def get_dose_peaks(self, beads_line: NDArray, pixel_spacing: float) -> NDArray:
 
         # We expect large beads (i.e big peaks) to be ~5cm apart
         pix_peak_dist_x = int(self.peaks_distance / pixel_spacing)
@@ -83,10 +83,12 @@ class BeadsTray:
         peaks, _ = find_peaks(beads_line, height=1, distance=pix_peak_dist_x)
         return peaks
 
+
     def plot_peaks(self, beads_band: NDArray, beads_peaks: NDArray):
         plt.scatter(np.arange(0, len(beads_band)), beads_band, s=2)
         plt.plot(beads_peaks, beads_band[beads_peaks], "x", c="red")
         plt.show()
+        plt.clf()
 
 
     def plot_2D_w_marks(self, x_coords, y_coords):
@@ -114,29 +116,28 @@ class BeadsTray:
 
         # Isolate the most prominent peaks
         self.peaks = [
-            self.get_peaks(self.bands[0], self.pixel_spacing[0]),
-            self.get_peaks(self.bands[1], self.pixel_spacing[1])
+            self.get_dose_peaks(self.bands[0], self.pixel_spacing[0]),
+            self.get_dose_peaks(self.bands[1], self.pixel_spacing[1])
         ]
 
         self.plot_peaks(self.bands[0], self.peaks[0])
         self.plot_peaks(self.bands[1], self.peaks[1])
 
         # Generate coordinates for the full beads display
-        x_coords = [(x + self.crop_size, mid_x + self.crop_size) for x in self.x_peaks]
-        y_coords = [(mid_y + self.crop_size, y + self.crop_size) for y in self.y_peaks]
+        x_coords = [(x + self.crop_size, mid_x + self.crop_size) for x in self.peaks[0]]
+        y_coords = [(mid_y + self.crop_size, y + self.crop_size) for y in self.peaks[1]]
 
         # Reference plot with markers on the BBs
         self.plot_2D_w_marks(x_coords, y_coords)
 
         # Convert to mm
-        x_mm_pos = (self.x_peaks + self.crop_size) * self.pixel_spacing[0]
-        y_mm_pos = (self.y_peaks + self.crop_size) * self.pixel_spacing[1]
+        x_mm_pos = (self.peaks[0] + self.crop_size) * self.pixel_spacing[0]
+        y_mm_pos = (self.peaks[1] + self.crop_size) * self.pixel_spacing[1]
 
-        # TODO: FIGURE THIS OUT
-        # There's a weird issue with scaling which we correct with...
-        x_mm_pos /= 1.5
-        y_mm_pos /= 1.5
-        print("YOU ARE NOT USING PROPER SCIENCE")
+        # Deal with possible magnification from MV panel placement
+        mag = self.beads_dcm.RTImageSID / self.beads_dcm.RadiationMachineSAD
+        x_mm_pos /= mag
+        y_mm_pos /= mag
 
         # Get distance in mm between each peak (bb)
         distances_x = np.diff(x_mm_pos)
