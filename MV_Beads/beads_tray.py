@@ -30,6 +30,7 @@ class BeadsTray:
         self.cropped_beads: Union[None, NDArray] = None
         self.bands: Union[None, NDArray] = None
         self.peaks: Union[None, NDArray] = None
+        self.peaks_mm: Union[None, NDArray] = None
         self.results: Dict = {}
 
 
@@ -100,11 +101,27 @@ class BeadsTray:
         return peaks
 
 
-    def plot_peaks(self, beads_band: NDArray, beads_peaks: NDArray):
-        plt.scatter(np.arange(0, len(beads_band)), beads_band, s=2)
-        plt.plot(beads_peaks, beads_band[beads_peaks], "x", c="red")
-        plt.show()
-        plt.clf()
+    def plot_peaks(self, in_mm: bool = False):
+
+        labels = ["X", "Y"]
+        for idx, band in enumerate(self.bands):
+
+
+            if in_mm:
+                units = "mm"
+                max_scale = (len(band) + self.crop_size) * self.px_to_mm[idx]
+                plt.scatter(np.linspace(self.crop_size * self.px_to_mm[idx], max_scale, len(band)), band, s=2)
+                plt.plot(self.peaks_mm[idx], band[self.peaks[idx]], "x", c="red")
+            else:
+                units = "px"
+                max_scale = len(band)
+                plt.scatter(np.arange(0, max_scale), band, s=2)
+                plt.plot(self.peaks[idx], band[self.peaks[idx]], "x", c="red")
+            plt.xlabel(f"Planar {labels[idx]} BB positions [{units}]")
+            plt.ylabel(f"Inverse intensity [A.U]")
+            plt.title(f"Peak localization for {labels[idx]} plane")
+            plt.show()
+            plt.clf()
 
 
     def plot_2D_w_marks(self):
@@ -140,19 +157,20 @@ class BeadsTray:
             self.get_dose_peaks(self.bands[1], self.px_to_mm[1])
         ]
 
-        self.plot_peaks(self.bands[0], self.peaks[0])
-        self.plot_peaks(self.bands[1], self.peaks[1])
+        # self.plot_peaks()
 
         # Reference plot with markers on the BBs
-        self.plot_2D_w_marks()
+        # self.plot_2D_w_marks()
 
         # Convert to mm
-        x_mm_pos = (self.peaks[0] + self.crop_size) * self.px_to_mm[0]
-        y_mm_pos = (self.peaks[1] + self.crop_size) * self.px_to_mm[1]
+        self.peaks_mm = [
+            (self.peaks[0] + self.crop_size) * self.px_to_mm[0],
+            (self.peaks[1] + self.crop_size) * self.px_to_mm[1]
+            ]
 
         # Get distance in mm between each peak (bb)
-        distances_x = np.diff(x_mm_pos)
-        distances_y = np.diff(y_mm_pos)
+        distances_x = np.diff(self.peaks_mm[0])
+        distances_y = np.diff(self.peaks_mm[1])
 
         self.results = {
             "mean_x": np.mean(distances_x),
@@ -171,6 +189,8 @@ def main():
     crop_size_px = 100
     beads = BeadsTray(dcm_filepath, crop_size_px)
     beads.analyze()
+    #beads.plot_peaks(in_mm=False)
+    beads.plot_2D_w_marks()
 
 
 if __name__ == "__main__":
