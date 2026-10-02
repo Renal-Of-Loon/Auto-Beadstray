@@ -3,7 +3,10 @@ import numpy as np
 from scipy.signal import find_peaks
 import matplotlib.pyplot as plt
 
-from numpy.typing import NDArray
+try:
+    from numpy.typing import NDArray
+except ImportError:
+    NDArray = np.ndarray
 
 from pathlib import Path
 from typing import Dict, List, Union
@@ -20,6 +23,9 @@ class BeadsTray:
         self.magnification: float = self.beads_dcm.RTImageSID / self.beads_dcm.RadiationMachineSAD
         self.collimator_angle: float = self.beads_dcm.BeamLimitingDeviceAngle
         self.gantry_angle: float = self.beads_dcm.GantryAngle
+        # Tiny adjustment for QATrack
+        if self.gantry_angle == 360:
+            self.gantry_angle = 0
 
         # In some cases the MV panel may not be at SAD, account for that when converting to iso-mm
         self.px_to_mm: List = [i / self.magnification for i in self.pixel_spacing]
@@ -120,6 +126,9 @@ class BeadsTray:
             plt.xlabel(f"Planar {labels[idx]} BB positions [{units}]")
             plt.ylabel(f"Inverse intensity [A.U]")
             plt.title(f"Peak localization for {labels[idx]} plane")
+            # UTILS.write_file(
+            #     f"G{self.gantry_angle} - Planar {label} peak positions.png", plt.gcf()
+            # )
             plt.show()
             plt.clf()
 
@@ -132,6 +141,9 @@ class BeadsTray:
         plt.imshow(self.beads_array)
         plt.scatter(*zip(*x_coords), marker="x", color="red")
         plt.scatter(*zip(*y_coords), marker="x", color="red")
+        # UTILS.write_file(
+        #     f"G{self.gantry_angle} - Beadstray localization.png", plt.gcf()
+        # )
         plt.show()
         plt.clf()
 
@@ -173,6 +185,7 @@ class BeadsTray:
         distances_y = np.diff(self.peaks_mm[1])
 
         self.results = {
+            "g_angle": self.gantry_angle,
             "mean_x": np.mean(distances_x),
             "std_x": np.std(distances_x),
             "mean_y": np.mean(distances_y),
