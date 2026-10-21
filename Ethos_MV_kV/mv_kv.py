@@ -393,8 +393,9 @@ class MVkV:
         bb_LEFT_shift = -1 * (L_R_field_center - L_R_bb) * px2mm
         bb_INF_shift = -1 * (S_I_field_center - S_I_bb) * px2mm
 
-        field_asym_leaf_edges = max(L_R_field_center_90, A_P_field_center_90) * px2mm
-        field_asym_leaf_ends = S_I_field_center_90 * px2mm
+        field_asym_leaf_edges = max(abs(L_R_field_center_90 - L_R_field_center),
+                                    A_P_field_center_90 - A_P_field_center) * px2mm
+        field_asym_leaf_ends = (abs(S_I_field_center_90 - S_I_field_center)) * px2mm
         mv_panel_shift_y = (self.fields["G0C90"].metrics.bb_y_int - self.fields["G90C90"].metrics.bb_y_int) * px2mm
         mv_panel_shift_x = abs(
             (self.fields["G0C90"].metrics.bb_x_int - L_R_field_center) - (A_P_field_center - self.fields["G90C90"].metrics.bb_x_int)
@@ -463,7 +464,7 @@ def main():
 
     mvkv = MVkV(zip_filepath)
     for f in mvkv.dcm_files:
-        mvkv.field_analysis(f, plot=False)
+        mvkv.field_analysis(f, plot=True)
 
     mvkv.crosshairs = (641, 640)
     # Expects: ANT, LEFT, INF
