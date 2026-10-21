@@ -1,12 +1,11 @@
 import pydicom as dcm
 import numpy as np
-from numpy.polynomial import Polynomial
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.patches import Circle, Rectangle
 from scipy import ndimage as ndi
 from scipy import optimize as opt
-from scipy.special import erf
+
 
 try:
     from numpy.typing import NDArray
@@ -17,6 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import zipfile
 from typing import Dict, List, Union, Tuple
+import tempfile
+import shutil
 import warnings
 
 def gaussian_2d(coords, amplitude, x0, y0, sigma_x, sigma_y, offset):
@@ -323,9 +324,9 @@ class FieldAnalysis:
 
 
 class MVkV:
-    def __init__(self, zip_filepath: str, unzip_path: str):
+    def __init__(self, zip_filepath: str):
         self.zip_filepath: str = zip_filepath
-        self.dcm_folder: str = unzip_path
+        self.tmp_dir: str = ''
 
         self.dcm_filenames: Union[List[str], None] = None
         self.dcm_files: Union[List[dcm.FileDataset], None] = None
@@ -337,20 +338,23 @@ class MVkV:
         self.kv_bb_shifts: BBCenter
         self.mv_bb_shifts: BBCenter
         self.mv_qa_values: Dict = {}
-        self.qa_values: Dict = {}
+        self.mvkv_qa_values: Dict = {}
 
-
-        self.unzip()
-        self.load_dcms()
+        try:
+            self.unzip()
+            self.load_dcms()
+        finally:
+            shutil.rmtree(self.tmp_dir)
 
     def unzip(self):
+        self.tmp_dir = tempfile.mktemp()
         with zipfile.ZipFile(self.zip_filepath, 'r') as zip_ref:
             self.dcm_filenames = zip_ref.namelist()
-            zip_ref.extractall(self.dcm_folder)
+            zip_ref.extractall(self.tmp_dir)
 
 
     def load_dcms(self):
-        dcm_paths = [Path(self.dcm_folder) / f for f in self.dcm_filenames]
+        dcm_paths = [Path(self.tmp_dir) / f for f in self.dcm_filenames]
         self.dcm_files = [dcm.dcmread(f) for f in dcm_paths]
 
 
@@ -442,26 +446,30 @@ class MVkV:
             "mv_crosshairs_SI_delta": mv_crosshairs_SI_delta
         }
 
-        self.qa_values = {**self.mv_qa_values, **self.mvkv_qa_values}
+    @property
+    def qa_values(self):
+        if len(self.mv_qa_values) == 0:
+            self.set_mv_qa_values()
+        if len(self.mvkv_qa_values) == 0:
+            self.set_kv_mv_qa_values()
+
+        return {**self.mv_qa_values, **self.mvkv_qa_values}
 
 
 
 def main():
     zip_filepath = r"C:\Users\rlefol\Documents\QAT\Ethos_MV_kV\data.zip"
-    tmp_directory = r"C:\Users\rlefol\Documents\QAT\Ethos_MV_kV\unzip_dir"
+    #tmp_directory = r"C:\Users\rlefol\Documents\QAT\Ethos_MV_kV\unzip_dir"
 
-    mvkv = MVkV(zip_filepath, tmp_directory)
+    mvkv = MVkV(zip_filepath)
     for f in mvkv.dcm_files:
-        mvkv.field_analysis(f, plot=True)
+        mvkv.field_analysis(f, plot=False)
 
     mvkv.crosshairs = (641, 640)
     # Expects: ANT, LEFT, INF
     mvkv.kv_bb_shifts = BBCenter(ANT=-0.5, LEFT=-0.4, INF=1)
-    mvkv.set_mv_qa_values()
 
-
-
-    print()
+    print(mvkv.qa_values)
 
 
 if __name__ == "__main__":
